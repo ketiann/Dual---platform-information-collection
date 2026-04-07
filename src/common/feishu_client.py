@@ -152,6 +152,8 @@ class FeishuClient:
         DATETIME_FIELDS = {"创建时间", "文件获取截止时间"}
         SINGLE_SELECT_FIELDS = {"公告类型", "项目状态", "数据来源", "处理情况"}
         URL_FIELDS = {"访问链接"}
+        # NFDW平台的URL字段存在飞书API兼容问题，直接跳过
+        SKIP_URL_PLATFORMS = {"nfdw"}
 
         feishu_records = []
         for rec in records:
@@ -168,6 +170,9 @@ class FeishuClient:
                     # SingleSelect字段：直接传字符串
                     fields[key] = str(value)
                 elif key in URL_FIELDS:
+                    # NFDW平台跳过URL字段（飞书API兼容问题）
+                    if platform in SKIP_URL_PLATFORMS:
+                        continue
                     # URL字段：只传完整的http/https URL，否则跳过
                     url_str = str(value).strip()
                     # 清理URL中的换行符和多余空白

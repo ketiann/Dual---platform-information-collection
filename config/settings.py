@@ -72,8 +72,8 @@ GJDW_CONFIG = {
     "keyword_filter": "湖南",
     # 剔除的项目状态
     "exclude_status": ["已经截止"],
-    # 首次采集起始日期
-    "start_date": "2026-03-18",
+    # 首次采集起始日期（最近10天）
+    "start_date": "2026-03-28",
     # 每页等待时间（秒）
     "page_wait": 3,
     # 翻页等待时间（秒）
@@ -103,8 +103,8 @@ NFDW_CONFIG = {
     ],
     # 剔除的公告类型
     "exclude_types": ["零星采购澄清公告"],
-    # 首次采集起始日期
-    "start_date": "2026-03-18",
+    # 首次采集起始日期（最近10天）
+    "start_date": "2026-03-28",
     # 请求间隔（秒）
     "request_interval": 2,
     # 详情页请求间隔（秒）

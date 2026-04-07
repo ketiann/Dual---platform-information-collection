@@ -119,7 +119,8 @@ class GJDWCollector:
                 break
 
             page_new = 0
-            page_has_old_data = False  # 标记是否遇到旧数据
+            page_has_old_data = False  # 标记是否遇到旧数据或被过滤的数据
+            page_filtered = False  # 标记是否有数据被关键字/状态过滤
 
             for item in items:
                 try:
@@ -128,11 +129,13 @@ class GJDWCollector:
 
                     # 筛选：项目名称包含关键字
                     if GJDW_CONFIG["keyword_filter"] and GJDW_CONFIG["keyword_filter"] not in project_name:
+                        page_filtered = True
                         continue
 
                     # 筛选：剔除已截止项目
                     status = item.get("status", "")
                     if status in GJDW_CONFIG["exclude_status"]:
+                        page_filtered = True
                         continue
 
                     # 筛选：日期过滤
@@ -244,7 +247,7 @@ class GJDWCollector:
             self._log(f"  第 {page_num} 页新增 {page_new} 条数据")
 
             # 判断是否继续翻页
-            if page_has_old_data:
+            if page_has_old_data or (page_filtered and page_new == 0):
                 no_match_pages += 1
                 if no_match_pages >= max_no_match:
                     self._log(f"  连续 {max_no_match} 页无符合条件的新数据，停止翻页")
