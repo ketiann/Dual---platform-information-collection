@@ -168,14 +168,13 @@ class FeishuClient:
                     # SingleSelect字段：直接传字符串
                     fields[key] = str(value)
                 elif key in URL_FIELDS:
-                    # URL字段：直接传字符串（飞书URL类型字段也接受纯字符串）
+                    # URL字段：只传完整的http/https URL，否则跳过
                     url_str = str(value).strip()
-                    if url_str and url_str.startswith("http"):
+                    # 清理URL中的换行符和多余空白
+                    url_str = url_str.replace('\n', '').replace('\r', '').replace(' ', '')
+                    if url_str.startswith("http://") or url_str.startswith("https://"):
                         fields[key] = url_str
-                    elif url_str:
-                        # 非http开头的URL也直接传字符串
-                        fields[key] = url_str
-                    # 空值则不传该字段
+                    # 非完整URL或空值则不传该字段
                 else:
                     # Text/Email等其他字段：直接传字符串，限制最大长度
                     str_val = str(value)
