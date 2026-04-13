@@ -150,7 +150,14 @@ class GJDWCollector:
 
                     # 获取详情页
                     detail_url = item.get("detail_url", "")
-                    if detail_url:
+                    needs_click = item.get("needs_click", False)
+
+                    if needs_click and not detail_url:
+                        # SPA应用：点击行后直接从当前页面提取详情内容
+                        detail = self._click_row_for_detail(page, item, source)
+                        if detail:
+                            item.update(detail)
+                    elif detail_url:
                         detail = self._get_detail_page(context, detail_url, source, project_name)
                         if detail:
                             item.update(detail)
@@ -330,6 +337,9 @@ class GJDWCollector:
                                 item["project_code"] = code_match.group(1)
 
                     if item.get("project_name"):
+                        # 如果没有找到有效的详情链接，标记需要通过点击行来获取
+                        if not item.get("detail_url"):
+                            item["needs_click"] = True
                         items.append(item)
 
                 except Exception:
@@ -366,6 +376,127 @@ class GJDWCollector:
             except Exception:
                 continue
         return False
+
+    def _click_row_for_detail(self, page: Page, item: dict, source: dict) -> Optional[dict]:
+        """
+        SPA应用中，通过点击表格行来获取详情页内容。
+        点击行后直接从当前页面提取详情内容，然后返回列表页。
+        返回详情数据字典，如果失败则返回None。
+        """
+        project_name = item.get("project_name", "")
+        if not project_name:
+            return None
+
+        try:
+            # 重新查找包含该项目名称的行
+            rows = page.query_selector_all("table tr")
+            target_row = None
+            for row in rows[1:]:  # 跳过表头
+                try:
+                    cells = row.query_selector_all("td")
+                    if cells and project_name in cells[0].inner_text().strip():
+                        target_row = row
+                        break
+                except Exception:
+                    continue
+
+            if not target_row:
+                self._log(f"    未找到匹配行: {project_name[:40]}...")
+                return None
+
+            # 记录当前URL用于返回
+            current_url = page.url
+
+            # 尝试点击行中的链接
+            clicked = False
+            first_link = target_row.query_selector("td a")
+            if first_link:
+                try:
+                    first_link.click()
+                    clicked = True
+                except Exception:
+                    pass
+
+            if not clicked:
+                try:
+                    target_row.click()
+                    clicked = True
+                except Exception:
+                    pass
+
+            if not clicked:
+                self._log(f"    无法点击行: {project_name[:40]}...")
+                return None
+
+            # 等待SPA渲染详情页
+            time.sleep(3)
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+
+            # 从当前页面提取详情内容
+            result = {}
+            try:
+                full_text = page.inner_text("body")
+
+                # 判断是否成功导航到详情页（内容应该包含项目名称且比列表更详细）
+                if full_text and len(full_text.strip()) > 200 and project_name in full_text:
+                    result["公告全文"] = full_text
+
+                    # 提取项目编号
+                    code_patterns = [
+                        r"项目编号[：:]\s*([A-Za-z0-9\-_]+)",
+                        r"编号[：:]\s*([A-Za-z0-9\-_]+)",
+                        r"([A-Z]-\d{4}-[A-Z]+-\w+)",
+                    ]
+                    for pattern in code_patterns:
+                        match = re.search(pattern, full_text)
+                        if match:
+                            result["project_code"] = match.group(1)
+                            break
+
+                    # 提取截止时间
+                    deadline = extract_date_after_keyword(
+                        full_text,
+                        [
+                            "文件获取截止时间", "获取截止时间", "截止时间", "投标截止时间", "递交截止时间",
+                            "招标文件获取", "获取结束", "文件获取结束", "获取时间",
+                            "招标文件发售", "发售截止", "标书获取", "标书发售",
+                        ]
+                    )
+                    if deadline:
+                        result["文件获取截止时间"] = deadline
+
+                    # 提取状态
+                    if "正在招标" in full_text:
+                        result["status"] = "正在招标"
+                    elif "已经截止" in full_text:
+                        result["status"] = "已经截止"
+
+                    # 设置访问链接为当前页面URL
+                    result["visit_url"] = page.evaluate("() => window.location.href")
+
+                    self._log(f"    点击行成功获取详情内容 ({len(full_text)}字符)")
+                else:
+                    self._log(f"    点击行后未获取到有效详情内容")
+            except Exception as e:
+                self._log_error(f"    提取详情内容失败: {e}")
+
+            # 返回列表页
+            try:
+                page.goto(current_url, wait_until="networkidle", timeout=30000)
+                time.sleep(2)
+                page.wait_for_selector("table tr", timeout=15000)
+                time.sleep(1)
+            except Exception as e:
+                self._log_error(f"    返回列表页失败: {e}")
+
+            return result if result else None
+
+        except Exception as e:
+            self._log_error(f"    点击行获取详情失败: {e}")
+            return None
 
     def _get_detail_page(self, context: BrowserContext, detail_url: str, source: dict, project_name: str = "") -> Optional[dict]:
         """获取详情页内容"""

@@ -4,6 +4,7 @@
 支持：多维表格写入、机器人消息通知
 """
 import json
+import re
 import time
 from typing import Optional
 
@@ -153,7 +154,7 @@ class FeishuClient:
         SINGLE_SELECT_FIELDS = {"公告类型", "项目状态", "数据来源", "处理情况"}
         URL_FIELDS = {"访问链接"}
         # NFDW平台的URL字段存在飞书API兼容问题，直接跳过
-        SKIP_URL_PLATFORMS = {"nfdw"}
+        SKIP_URL_PLATFORMS = {"nfdw", "gjdw"}
 
         feishu_records = []
         for rec in records:
@@ -173,13 +174,11 @@ class FeishuClient:
                     # NFDW平台跳过URL字段（飞书API兼容问题）
                     if platform in SKIP_URL_PLATFORMS:
                         continue
-                    # URL字段：只传完整的http/https URL，否则跳过
-                    url_str = str(value).strip()
-                    # 清理URL中的换行符和多余空白
-                    url_str = url_str.replace('\n', '').replace('\r', '').replace(' ', '')
+                    # URL字段：清理空白字符后验证
+                    url_str = str(value)
+                    url_str = re.sub(r'\s+', '', url_str)
                     if url_str.startswith("http://") or url_str.startswith("https://"):
                         fields[key] = url_str
-                    # 非完整URL或空值则不传该字段
                 else:
                     # Text/Email等其他字段：直接传字符串，限制最大长度
                     str_val = str(value)

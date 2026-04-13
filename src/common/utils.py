@@ -113,8 +113,8 @@ def extract_date_after_keyword(text: str, keywords: list[str]) -> Optional[str]:
         idx = text.find(keyword)
         if idx != -1:
             after_text = text[idx + len(keyword):].strip()
-            # 提取日期部分（最多取80个字符）
-            date_part = after_text[:80]
+            # 提取日期部分（最多取120个字符）
+            date_part = after_text[:120]
             date_str = parse_date(date_part)
             if date_str:
                 return date_str
