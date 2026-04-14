@@ -147,20 +147,22 @@ class FeishuClient:
         # 字段类型映射：不同字段类型需要不同的值格式
         # DateTime字段: 传毫秒时间戳数字
         # SingleSelect字段: 直接传字符串（飞书自动匹配选项）
-        # URL字段: 传 {"link": "https://..."} 格式
         # Text字段: 直接传字符串
         # Email字段: 直接传字符串
+        # 注意："访问链接"不使用飞书URL字段类型（会导致URLFieldConvFail），
+        # 而是作为普通文本字段处理
         DATETIME_FIELDS = {"创建时间", "文件获取截止时间"}
         SINGLE_SELECT_FIELDS = {"公告类型", "项目状态", "数据来源", "处理情况"}
-        URL_FIELDS = {"访问链接"}
-        # NFDW平台的URL字段存在飞书API兼容问题，直接跳过
-        SKIP_URL_PLATFORMS = {"nfdw", "gjdw"}
+        # 以下字段在飞书中是URL类型，传任何值都会导致URLFieldConvFail，直接跳过
+        SKIP_FIELDS = {"访问链接"}
 
         feishu_records = []
         for rec in records:
             fields = {}
             for key, value in rec.items():
                 if value is None or value == "" or value == "None":
+                    continue
+                if key in SKIP_FIELDS:
                     continue
                 if key in DATETIME_FIELDS:
                     # DateTime字段：转换为毫秒时间戳
@@ -170,15 +172,6 @@ class FeishuClient:
                 elif key in SINGLE_SELECT_FIELDS:
                     # SingleSelect字段：直接传字符串
                     fields[key] = str(value)
-                elif key in URL_FIELDS:
-                    # NFDW平台跳过URL字段（飞书API兼容问题）
-                    if platform in SKIP_URL_PLATFORMS:
-                        continue
-                    # URL字段：清理空白字符后验证
-                    url_str = str(value)
-                    url_str = re.sub(r'\s+', '', url_str)
-                    if url_str.startswith("http://") or url_str.startswith("https://"):
-                        fields[key] = url_str
                 else:
                     # Text/Email等其他字段：直接传字符串，限制最大长度
                     str_val = str(value)
